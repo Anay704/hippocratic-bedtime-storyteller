@@ -31,6 +31,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import openai
+
 from bedtime.intake import NotAStoryRequest
 from bedtime.llm import LLMFormatError, OpenAIChat
 from bedtime.models import RUBRIC, StoryResult
@@ -213,6 +215,9 @@ def main(argv=None) -> int:
         result = run_session(pipeline, args)
     except LLMFormatError as exc:
         print(f"\nSorry, the storyteller got tangled up: {exc}", file=sys.stderr)
+        return 1
+    except openai.APIError as exc:
+        print(f"\nOpenAI API error: {getattr(exc, 'message', exc)}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
         print("\nGoodnight!")
