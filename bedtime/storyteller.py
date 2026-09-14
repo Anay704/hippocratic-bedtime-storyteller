@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import List
 
 from . import prompts
@@ -53,9 +54,14 @@ def _max_tokens(words: int) -> int:
 
 def clean_story(text: str, fallback_title: str) -> str:
     text = text.strip().strip("`").strip()
+    # Drop the "## beat" markers the writer uses to pace each scene.
+    text = re.sub(r"(?m)^#{2,}[^\n]*\n?", "", text)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
     if not text.startswith("# "):
         text = f"# {fallback_title}\n\n{text}"
-    return text
+    # Keep the title on its own line even if the model runs straight into the story.
+    title, _, body = text.partition("\n")
+    return f"{title.strip()}\n\n{body.strip()}"
 
 
 def write_story(llm: LLM, req: StoryRequest, outline: Outline) -> str:

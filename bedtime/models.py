@@ -59,6 +59,7 @@ class Verdict:
     revisions: List[str]
     summary: str
     measured_issues: List[str] = field(default_factory=list)  # from readability.check
+    continuity_problems: List[str] = field(default_factory=list)  # from the judge's trace
     pass_score: float = 8.0
     min_dim_score: int = 7
 
@@ -72,6 +73,7 @@ class Verdict:
         return (
             self.safety_ok
             and not self.measured_issues
+            and not self.continuity_problems
             and self.overall >= self.pass_score
             and min(self.scores.values(), default=0) >= self.min_dim_score
         )
@@ -79,7 +81,8 @@ class Verdict:
     @property
     def notes(self) -> List[str]:
         """Everything the writer should fix next, measured problems first."""
-        return self.measured_issues + self.revisions
+        fixes = [f"Fix this continuity error: {p}" for p in self.continuity_problems]
+        return self.measured_issues + fixes + self.revisions
 
     def rank_key(self):
         """Order drafts so a revision that got worse never replaces a better one."""
@@ -88,7 +91,7 @@ class Verdict:
             self.passed,
             min(self.scores.values(), default=0),
             self.overall,
-            -len(self.measured_issues),
+            -len(self.measured_issues) - len(self.continuity_problems),
         )
 
 

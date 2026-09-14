@@ -142,3 +142,29 @@ def test_call_json_gives_up_after_attempts():
 
     with pytest.raises(LLMFormatError):
         call_json(Broken(), [], temperature=0, max_tokens=5, required_keys=("a",))
+
+
+def test_judge_revisions_given_as_objects_are_flattened():
+    reply = judge_reply(6, revisions=[{"Add a sound word.": "Stomp, stomp!"}, "Slow the ending."])
+    llm = FakeLLM(intake=[intake_reply()], plan=[PLAN_REPLY], write=[GOOD_STORY], judge=[reply])
+    pipe = StoryPipeline(llm, max_revisions=0)
+    result = pipe.create(pipe.understand("rex"))
+    assert result.final.verdict.revisions == ["Add a sound word. (for example: Stomp, stomp!)", "Slow the ending."]
+
+
+def test_continuity_problems_block_a_pass_and_become_notes():
+    import json
+
+    reply = json.loads(judge_reply(9, revisions=[]))
+    reply["continuity_problems"] = ["Bob is outside, then hides in the fort."]
+    llm = FakeLLM(intake=[intake_reply()], plan=[PLAN_REPLY], write=[GOOD_STORY], judge=[json.dumps(reply)])
+    pipe = StoryPipeline(llm, max_revisions=0)
+    verdict = pipe.create(pipe.understand("rex")).final.verdict
+    assert not verdict.passed
+    assert verdict.notes == ["Fix this continuity error: Bob is outside, then hides in the fort."]
+
+
+def test_title_is_kept_on_its_own_line():
+    from bedtime.storyteller import clean_story
+
+    assert clean_story("# Title\nFirst line.\n## Cozy opening\nMore.", "x") == "# Title\n\nFirst line.\nMore."

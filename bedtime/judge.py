@@ -26,6 +26,13 @@ def _to_score(value: Any) -> int:
         return 1
 
 
+def _as_note(item: Any) -> str:
+    """gpt-3.5 sometimes returns a revision as {"instruction": "example"}; flatten it."""
+    if isinstance(item, dict):
+        return "; ".join(f"{k} (for example: {v})" if v else str(k) for k, v in item.items())
+    return str(item).strip()
+
+
 def judge_story(llm: LLM, req: StoryRequest, story: str) -> Verdict:
     words = prompts.target_words(req.age, req.length)
     data = call_json(
@@ -44,8 +51,9 @@ def judge_story(llm: LLM, req: StoryRequest, story: str) -> Verdict:
         scores=scores,
         safety_ok=safety_ok,
         strengths=[str(s) for s in data.get("strengths") or []],
-        revisions=[str(r) for r in data.get("revisions") or [] if str(r).strip()],
+        revisions=[n for n in (_as_note(r) for r in data.get("revisions") or []) if n],
         summary=str(data.get("summary", "")),
         # Code-measured problems block a pass on their own, whatever the judge scored.
         measured_issues=readability.check(story, req.age, words),
+        continuity_problems=[n for n in (_as_note(p) for p in data.get("continuity_problems") or []) if n],
     )

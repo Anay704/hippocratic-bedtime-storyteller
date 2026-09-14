@@ -63,9 +63,10 @@ def measure(story: str) -> TextStats:
 
 
 def max_grade_for_age(age: int) -> float:
-    # Stories are heard, not read, so listeners handle roughly two grades above
-    # their own reading level: a 5-year-old ~ grade 2, a 10-year-old ~ grade 7.
-    return float(age - 3)
+    # Stories are heard, not read, so listeners handle text well above their own
+    # reading level: a 5-year-old ~ grade 3, a 10-year-old ~ grade 8. The syllable
+    # heuristic also runs high on short dialogue-heavy text, so leave headroom.
+    return float(age - 2)
 
 
 def check(story: str, age: int, target_words: int) -> List[str]:
@@ -75,8 +76,10 @@ def check(story: str, age: int, target_words: int) -> List[str]:
     low, high = int(target_words * 0.7), int(target_words * 1.35)
     if stats.words < low:
         notes.append(
-            f"The story is {stats.words} words; aim for about {target_words}. "
-            "Deepen the 'Trying' and 'Wind-down' scenes with dialogue and sensory detail rather than adding new plot."
+            f"The story is only {stats.words} words and {stats.sentences} sentences; it must be about {target_words} words, "
+            f"roughly {round(target_words / max(stats.avg_sentence_words, 1))} sentences. Expand every beat into a full scene: in 'Trying', show each "
+            "attempt with dialogue and what the characters see and hear; slow the 'Wind-down' with soft sensory details. "
+            "Do not add new plot."
         )
     elif stats.words > high:
         notes.append(
