@@ -58,24 +58,38 @@ class Verdict:
     strengths: List[str]
     revisions: List[str]
     summary: str
-    pass_score: int = 8
+    measured_issues: List[str] = field(default_factory=list)  # from readability.check
+    pass_score: float = 8.0
     min_dim_score: int = 7
 
     @property
     def overall(self) -> float:
+        # Computed in code, never trusted from the model's arithmetic.
         return round(sum(self.scores.values()) / len(self.scores), 2) if self.scores else 0.0
 
     @property
     def passed(self) -> bool:
         return (
             self.safety_ok
+            and not self.measured_issues
             and self.overall >= self.pass_score
             and min(self.scores.values(), default=0) >= self.min_dim_score
         )
 
+    @property
+    def notes(self) -> List[str]:
+        """Everything the writer should fix next, measured problems first."""
+        return self.measured_issues + self.revisions
+
     def rank_key(self):
         """Order drafts so a revision that got worse never replaces a better one."""
-        return (self.safety_ok, self.passed, min(self.scores.values(), default=0), self.overall)
+        return (
+            self.safety_ok,
+            self.passed,
+            min(self.scores.values(), default=0),
+            self.overall,
+            -len(self.measured_issues),
+        )
 
 
 @dataclass
