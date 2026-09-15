@@ -59,7 +59,7 @@ flowchart TD
 
     subgraph Loop["4. Editor loop (max N revisions)"]
         M["Readability checks (code)<br/>word count, Flesch-Kincaid grade,<br/>stated-moral detector"] --> J
-        J["LLM judge (JSON, temp 0)<br/>7-dimension rubric, evidence first,<br/>safety flag, concrete revisions"] --> G{Pass?<br/>safe, avg ≥ 8, every score ≥ 7,<br/>no measured issues}
+        J["LLM judge (JSON, temp 0)<br/>continuity trace, evidence, 7-dimension rubric,<br/>safety flag, concrete revisions"] --> G{Pass?<br/>safe, avg ≥ 8, every score ≥ 7,<br/>no measured issues, no continuity errors}
         G -->|no, rounds left| R["Storyteller revises<br/>(temp 0.6) using the notes"]
         R --> M
     end
@@ -68,7 +68,7 @@ flowchart TD
     B --> OUT([Story + 'something to wonder about' question])
     OUT --> U
     U -->|"change request"| FS["Feedback screen (JSON, temp 0)<br/>softens unsafe changes"]
-    FS -->|"change becomes top priority for the writer<br/>and is added to the judge's brief"| R
+    FS -->|"update the plan with the change,<br/>retell, and add it to the judge's brief"| P
 ```
 
 ## How it works
@@ -115,6 +115,9 @@ a rubber stamp:
   adult scores 5 or less", "a stated moral scores 5 or less").
 - **Calibration against grade inflation:** "a typical first draft scores 6-8", "10 means nothing to
   improve".
+- **A continuity trace before anything else:** it goes paragraph by paragraph tracking where each
+  character is and lists contradictions ("they walk outside, then Bob hides in the fort"). Any it finds
+  become fix-it notes and block a pass.
 - **Evidence before scores:** it has to quote the strongest and weakest lines first, then score.
 - **Actionable, located revisions:** each note says where in the story and what to change, and every
   dimension under 8 must get one.
@@ -130,8 +133,9 @@ a rubber stamp:
 
 ### 5. Feedback loop
 After the story, the user can ask for changes. Each request goes through a small safety screen (same
-redirect-don't-refuse approach), becomes the **top-priority instruction** for the rewrite, and is added
-to the judge's brief as `requested_changes`, so request fidelity now also means "did it honor the change".
+redirect-don't-refuse approach). Then the **planner updates the plan** so the change is part of the arc,
+the story is **retold from the new plan**, and the change is added to the judge's brief as
+`requested_changes`, so request fidelity now also means "did it honor the change, and not just tack it on".
 
 ### Prompt hygiene that applies everywhere
 - All prompts live in one file, [`bedtime/prompts.py`](bedtime/prompts.py), so they can be read and tuned together.
@@ -140,6 +144,40 @@ to the judge's brief as `requested_changes`, so request fidelity now also means 
 - Structured stages use JSON mode. If the model returns broken or incomplete JSON, `call_json` shows
   the model its own reply and the exact problem and asks for a fix, which works better than a blind retry.
 - Temperatures are set per role: 0 for classification and judging, 0.6-0.8 for creative writing.
+
+## Example output
+
+Real `gpt-3.5-turbo` runs, saved with `--save` (story, plan, and every editor round):
+
+- [`examples/01-alice-and-bob.md`](examples/01-alice-and-bob.md): the assignment's example request, age 6.
+- [`examples/02-monster-softened-then-owl-added.md`](examples/02-monster-softened-then-owl-added.md):
+  *"a scary story about a monster that eats kids"* gets softened into a friendly monster, then the
+  follow-up *"add a sleepy owl named Hoot and make it funnier"* is woven through the whole plot.
+
+## What live testing changed
+
+The first version passed its offline tests and still failed in four ways against the real model. Each fix
+is in the commit history:
+
+| What I saw with gpt-3.5 | Fix |
+|---|---|
+| Stories came out at ~140 words against a 400-word target, and revisions made them *shorter* | Per-beat **sentence** budgets (it can't count words, but it can count sentences), with the budget repeated next to the story in each revision |
+| The judge passed a story where characters went outside and then hid in the fort | The judge does a paragraph-by-paragraph continuity trace first; contradictions block a pass |
+| "A scary story about a monster that eats kids" was rejected as "not a story" | A second few-shot example showing an unsafe request being softened, not rejected |
+| A requested sleepy owl was tacked on after everyone fell asleep | Feedback now updates the plan and the story is retold from it; the judge's rubric penalizes changes that are only tacked on |
+
+Smaller ones: the judge sometimes returned revisions as `{instruction: example}` objects (now flattened),
+and "had learned that..." morals slipped past the moral detector (now a regex).
+
+## Known limitations
+
+- **gpt-3.5 is a lenient judge.** Scores cluster at 8-9 even for drafts with clear weaknesses. That's
+  why the hard gates (length, reading level, stated morals, continuity, safety) are decided in code or by
+  a narrow, specific task rather than by the overall score.
+- **Reading level is the hardest thing to fix.** gpt-3.5 likes words like "crestfallen" and
+  "determination", and revisions only partly simplify them. The loop stops after `--rounds` and keeps
+  the best draft, so some stories finish slightly above the target grade.
+- Flesch-Kincaid is a rough heuristic for read-aloud text, so its threshold is deliberately loose.
 
 ## Project layout
 
