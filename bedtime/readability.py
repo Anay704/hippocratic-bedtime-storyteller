@@ -15,12 +15,11 @@ from typing import List
 _WORD = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?")
 _SENTENCE_END = re.compile(r"[.!?]+[\"')\]]*(?:\s|$)")
 
-LESSON_TELLS = (
-    "the moral of",
-    "learned a valuable lesson",
-    "learned an important lesson",
-    "the lesson is",
-    "and that's why you should",
+# Phrases that state the moral instead of showing it.
+LESSON_TELLS = re.compile(
+    r"\b(the moral (of|is)|the lesson (is|was)|(had |have |has )?learned (that|a|an|the importance)"
+    r"|realized that (true )?friend|and that's why you should)\b",
+    re.IGNORECASE,
 )
 
 
@@ -91,13 +90,11 @@ def check(story: str, age: int, target_words: int) -> List[str]:
             f"Reading level is grade {stats.fk_grade}, too hard for a {age}-year-old listener (target <= {limit:g}). "
             "Split long sentences and swap long words for short ones."
         )
-    lowered = story.lower()
-    for tell in LESSON_TELLS:
-        if tell in lowered:
-            notes.append(
-                f"Remove the stated lesson ('{tell}...'); let the ending show it through what the characters do."
-            )
-            break
+    tell = LESSON_TELLS.search(story)
+    if tell:
+        notes.append(
+            f"Remove the stated lesson ('{tell.group(0)}...'); let the ending show it through what the characters do."
+        )
     return notes
 
 

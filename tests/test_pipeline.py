@@ -105,7 +105,7 @@ def test_user_text_is_fenced_as_data():
 def test_feedback_is_screened_then_judged_against():
     llm = FakeLLM(
         intake=[intake_reply()],
-        plan=[PLAN_REPLY],
+        plan=[PLAN_REPLY, PLAN_REPLY],
         write=[GOOD_STORY, GOOD_STORY],
         judge=[judge_reply(9), judge_reply(9)],
         feedback=['{"appropriate": true, "change": "Add a friendly owl.", "note": ""}'],
@@ -116,7 +116,9 @@ def test_feedback_is_screened_then_judged_against():
 
     assert result.request.feedback == ["Add a friendly owl."]
     assert result.final.label == "feedback 1"
-    assert "Add a friendly owl." in llm.calls[-2]["messages"][-1]["content"]  # writer saw it
+    replan = [c for c in llm.calls if c["role"] == "plan"][1]["messages"][-1]["content"]
+    assert "Previous plan" in replan and "Add a friendly owl." in replan
+    assert llm.calls[-2]["role"] == "write"  # fresh retelling from the updated plan
     assert "Add a friendly owl." in llm.calls[-1]["messages"][-1]["content"]  # judge checks it
 
 

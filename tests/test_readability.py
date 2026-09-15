@@ -34,3 +34,8 @@ def test_target_words_scales_with_age_and_length():
     assert prompts.target_words(5, "medium") < prompts.target_words(10, "medium")
     assert prompts.target_words(7, "short") < prompts.target_words(7, "long")
     assert prompts.target_words(99, "medium") == prompts.target_words(10, "medium")
+
+
+def test_stated_lesson_variants_are_caught():
+    assert any("stated lesson" in n for n in readability.check("# T\n\nThe monster had learned that friends help.", 7, 10))
+    assert not any("stated lesson" in n for n in readability.check("# T\n\nShe learned to whistle.", 7, 10))

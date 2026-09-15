@@ -51,10 +51,14 @@ class StoryPipeline:
         req.feedback.append(change)
 
         n = len(req.feedback)
-        self.emit("stage", {"name": f"Rewriting with your change: {change}"})
-        story = storyteller.revise_story(
-            self.llm, req, result.outline, result.final.text, notes=[], parent_change=change
-        )
+        # Re-plan first so the change becomes part of the arc instead of a paragraph bolted onto the end.
+        self.emit("stage", {"name": f"Updating the plan: {change}"})
+        result.outline = storyteller.plan_story(self.llm, req, previous=result.outline, change=change)
+        self.emit("outline", {"outline": result.outline})
+
+        # Write fresh from the updated plan: revising the old text made gpt-3.5 bolt the change onto the end.
+        self.emit("stage", {"name": "Retelling the story"})
+        story = storyteller.write_story(self.llm, req, result.outline)
         # The judge now also checks the change was honored (requested_changes in its brief).
         self._refine(result, story, first_label=f"feedback {n}", parent_change=change)
         return result

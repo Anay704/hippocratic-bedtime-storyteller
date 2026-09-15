@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-from typing import List
+from dataclasses import asdict
+from typing import List, Optional
 
 from . import prompts
 from .llm import LLM, call_json
@@ -21,12 +22,13 @@ def _validate_plan(data: dict):
     return None
 
 
-def plan_story(llm: LLM, req: StoryRequest) -> Outline:
+def plan_story(llm: LLM, req: StoryRequest, previous: Optional[Outline] = None, change: str = "") -> Outline:
+    """Plan a new story, or update an existing plan to fold in a requested change."""
     words = prompts.target_words(req.age, req.length)
     strategy = prompts.CATEGORY_STRATEGIES[req.category]
     data = call_json(
         llm,
-        prompts.planner_messages(req, strategy, words),
+        prompts.planner_messages(req, strategy, words, asdict(previous) if previous else None, change),
         temperature=PLAN_TEMPERATURE,
         max_tokens=900,
         required_keys=("title", "logline", "beats"),
